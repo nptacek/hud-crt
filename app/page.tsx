@@ -1,6 +1,5 @@
-import CRTImageDemo from "@/crt-image-demo"
+import { CRT } from "@/crt-image";
 
 export default function Home() {
-  return <CRTImageDemo />
+  return <CRT />;
 }
-
