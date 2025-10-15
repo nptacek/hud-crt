@@ -1,5 +1,5 @@
-import { CRT } from "@/crt-image";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <CRT />;
+  redirect("/vr.html");
 }
