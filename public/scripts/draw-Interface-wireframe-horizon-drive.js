@@ -200,7 +200,6 @@ function drawMountainRange(ctx, width, horizonY, scroll) {
 function drawPerspectiveGrid(ctx, width, height, horizonY, scroll) {
     ctx.save();
     
-    const centerX = width / 2;
     const vanishingPointY = horizonY;
     const roadWidth = width * 0.8;
     const roadLeft = (width - roadWidth) / 2;
