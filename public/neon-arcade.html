@@ -38,7 +38,7 @@
     <a-scene
       background="color: #0b0d16"
       fog="type: exponential; color: #0b0d16; density: 0.02"
-      renderer="antialias: true; physicallyCorrectLights: true; colorManagement: true; logarithmicDepthBuffer: true; shadow: true"
+      renderer="antialias: true; physicallyCorrectLights: true; colorManagement: true; logarithmicDepthBuffer: true; shadows: true"
       stats
     >
       <a-entity id="lights">
@@ -53,16 +53,16 @@
       <a-entity id="room" grid-floor="sizeX: 16; sizeZ: 12; step: 0.5">
         <a-plane id="floor" rotation="-90 0 0" width="16" height="12" material="color: #1b1f2e; roughness: 1; metalness: 0" shadow="receive: true"></a-plane>
         <a-plane id="ceiling" position="0 5.0 0" rotation="90 0 0" width="16" height="12" material="color: #141826; roughness: 1"></a-plane>
-        <a-plane id="wallN" position="0 2.5 -6" rotation="0 0 0" width="16" height="5" material="color: #23283b; roughness: .95; metalness: .04"></a-plane>
-        <a-plane id="wallS" position="0 2.5 6" rotation="0 180 0" width="16" height="5" material="color: #23283b; roughness: .95; metalness: .04"></a-plane>
-        <a-plane id="wallW" position="-8 2.5 0" rotation="0 90 0" width="12" height="5" material="color: #23283b; roughness: .95; metalness: .04"></a-plane>
-        <a-plane id="wallE" position="8 2.5 0" rotation="0 -90 0" width="12" height="5" material="color: #23283b; roughness: .95; metalness: .04"></a-plane>
+        <a-plane id="wallN" position="0 2.5 -6" rotation="0 0 0" width="16" height="5" material="color: #23283b; roughness: 0.95; metalness: 0.04"></a-plane>
+        <a-plane id="wallS" position="0 2.5 6" rotation="0 180 0" width="16" height="5" material="color: #23283b; roughness: 0.95; metalness: 0.04"></a-plane>
+        <a-plane id="wallW" position="-8 2.5 0" rotation="0 90 0" width="12" height="5" material="color: #23283b; roughness: 0.95; metalness: 0.04"></a-plane>
+        <a-plane id="wallE" position="8 2.5 0" rotation="0 -90 0" width="12" height="5" material="color: #23283b; roughness: 0.95; metalness: 0.04"></a-plane>
         <a-entity neon-tube="length: 16; color: #ff79c6" position="0 4.7 -5.9" rotation="0 0 0"></a-entity>
         <a-entity neon-tube="length: 16; color: #8be9fd" position="0 4.7 5.9" rotation="0 180 0"></a-entity>
         <a-entity neon-tube="length: 12; color: #f1fa8c" position="-7.9 4.7 0" rotation="0 90 0"></a-entity>
         <a-entity neon-tube="length: 12; color: #ff79c6" position="7.9 4.7 0" rotation="0 -90 0"></a-entity>
         <a-entity position="0 3.4 -5.7">
-          <a-plane width="4.6" height="1.2" material="color: #0f0f18; roughness: .9; metalness: .1"></a-plane>
+          <a-plane width="4.6" height="1.2" material="color: #0f0f18; roughness: 0.9; metalness: 0.1"></a-plane>
           <a-entity position="0 0 0.01" text="value: ARCADE; align: center; width: 8; color: #ff79c6"></a-entity>
           <a-entity position="0 -0.35 0.01" text="value: INSERT COIN; align: center; width: 4; color: #8be9fd"></a-entity>
         </a-entity>

@@ -66,9 +66,9 @@ function createTelemetryState(seed, programMeta) {
     },
     tech: {
       exposureTime: 2.4 + seed * 0.8,
-      energyLevel: 110 + seed * 20,
+      energyLevel: 70 + seed * 6,
       sliceThickness: 1.1 + seed * 0.4,
-      insertionDepth: 38 + seed * 8,
+      insertionDepth: 36 + seed * 6,
       rotationAngle: seed * 0.4,
     },
     chromatic: {
@@ -86,7 +86,23 @@ function createTelemetryState(seed, programMeta) {
       systemLoad: Array.from({ length: 16 }, (_, i) => 48 + Math.sin(seed * 8 + i * 0.4) * 18),
       signalStrength: 62 + seed * 10,
       noiseLevels: Array.from({ length: 128 }, (_, i) => Math.sin(seed * 3 + i * 0.14) * 8),
-      fuelCells: Array.from({ length: 8 }, (_, i) => 82 - i * (2 + seed)),
+      fuelCells: Array.from({ length: 8 }, (_, i) => 78 - i * (1.8 + seed * 0.8)),
+      tradeVolume: 520 + seed * 380,
+      laneDensity: 0.35 + seed * 0.1,
+      alerts: 0,
+      ticker: [
+        { label: "NODE-01", value: "+12%" },
+        { label: "NODE-07", value: "-4%" },
+        { label: "DOCK-ALFA", value: "+32%" },
+        { label: "NODE-12", value: "+5%" },
+      ],
+      docks: 10,
+      dockingProgress: 0.45 + seed * 0.35,
+      orbits: [
+        { baseRadius: 150 + seed * 20, radius: 150 + seed * 20, speed: 1.2, label: "ALPHA" },
+        { baseRadius: 120 + seed * 18, radius: 120 + seed * 18, speed: 0.85, label: "BETA" },
+        { baseRadius: 90 + seed * 12, radius: 90 + seed * 12, speed: 0.65, label: "GATE" },
+      ],
       lifeSupportStatus: "NOMINAL",
       lastUpdateTime: now,
     },
@@ -103,7 +119,8 @@ function updateTelemetryState(state, time, delta, playing) {
   state.scan.targetY = 256 + Math.sin(state.rotation) * orbit;
   state.scan.scanProgress = (Math.sin(t * 0.7) + 1) / 2;
 
-  state.tech.energyLevel = 108 + Math.sin(t * 0.9) * 26 * intensity;
+  const energyTarget = 74 + Math.sin(t * 0.9) * 12 * intensity;
+  state.tech.energyLevel += (energyTarget - state.tech.energyLevel) * 0.5;
   state.tech.rotationAngle = (Math.sin(t * 0.5) + 1) * 0.35;
   state.tech.insertionDepth = 36 + Math.sin(t * 0.3 + state.seed) * 9;
 
@@ -125,6 +142,30 @@ function updateTelemetryState(state, time, delta, playing) {
     const drift = Math.sin(t * 0.25 + index * 0.9 + state.seed) * 0.9;
     const next = value + drift;
     return Math.min(100, Math.max(35, next));
+  });
+
+  state.systemData.tradeVolume += (
+    620 + Math.sin(t * 0.65 + state.seed * 1.5) * 320 * intensity - state.systemData.tradeVolume
+  ) * 0.18;
+
+  state.systemData.laneDensity += (
+    0.42 + Math.sin(t * 0.55 + state.seed * 2.1) * 0.18 - state.systemData.laneDensity
+  ) * 0.2;
+
+  const alertWave = Math.sin(t * 0.4 + state.seed * 3.2);
+  state.systemData.alerts = alertWave > 0.75 ? 2 : alertWave > 0.35 ? 1 : 0;
+
+  state.systemData.dockingProgress = Math.max(0, Math.min(1, 0.5 + Math.sin(t * 0.45) * 0.35));
+  state.systemData.orbits = state.systemData.orbits.map((orbit, idx) => ({
+    ...orbit,
+    radius: orbit.baseRadius + Math.sin(t * 0.3 + idx) * 4,
+  }));
+
+  state.systemData.ticker = state.systemData.ticker.map((entry, idx) => {
+    const drift = Math.sin(t * 0.9 + idx * 1.3 + state.seed * 4) * 8;
+    const value = Math.round(drift * 10) / 10;
+    const sign = value >= 0 ? "+" : "";
+    return { ...entry, value: `${sign}${value}%` };
   });
 
   const signalTarget = 64 + Math.sin(t * 0.5 + state.seed * 3) * 14 + Math.cos(t * 0.8) * 6;
@@ -176,13 +217,16 @@ AFRAME_READY.then((AFRAME) => {
       tube.setAttribute("radius", 0.02);
       tube.setAttribute("height", this.data.length);
       tube.setAttribute("rotation", "0 0 90");
-      tube.setAttribute(
-        "material",
-        `color:${this.data.color}; emissive:${this.data.color}; emissiveIntensity:.8; metalness:.2; roughness:.2`
-      );
+      tube.setAttribute("material", {
+        color: this.data.color,
+        emissive: this.data.color,
+        emissiveIntensity: 0.8,
+        metalness: 0.2,
+        roughness: 0.2,
+      });
       tube.setAttribute(
         "animation__f",
-        "property: material.emissiveIntensity; dir: alternate; from: .65; to: .95; dur: 1800; loop: true; easing: easeInOutSine"
+        "property: material.emissiveIntensity; dir: alternate; from: 0.65; to: 0.95; dur: 1800; loop: true; easing: easeInOutSine"
       );
       this.el.appendChild(tube);
     },
@@ -195,32 +239,38 @@ AFRAME_READY.then((AFRAME) => {
       const base = document.createElement("a-cylinder");
       base.setAttribute("radius", 0.22);
       base.setAttribute("height", 0.08);
-      base.setAttribute("material", "color:#121821; roughness:.9; metalness:.1");
+      base.setAttribute("material", { color: "#121821", roughness: 0.9, metalness: 0.1 });
       base.setAttribute("position", "0 0.04 0");
       const stem = document.createElement("a-cylinder");
       stem.setAttribute("radius", 0.07);
       stem.setAttribute("height", 0.42);
-      stem.setAttribute("material", "color:#1b2330; roughness:.85; metalness:.2");
+      stem.setAttribute("material", { color: "#1b2330", roughness: 0.85, metalness: 0.2 });
       stem.setAttribute("position", "0 0.29 0");
       const btn = document.createElement("a-sphere");
       btn.setAttribute("radius", 0.11);
       btn.setAttribute("position", "0 0.56 0");
-      btn.setAttribute(
-        "material",
-        `color:${this.data.color}; emissive:${this.data.color}; emissiveIntensity:.5; roughness:.25; metalness:.2`
-      );
+      btn.setAttribute("material", {
+        color: this.data.color,
+        emissive: this.data.color,
+        emissiveIntensity: 0.5,
+        roughness: 0.25,
+        metalness: 0.2,
+      });
       const halo = document.createElement("a-ring");
       halo.setAttribute("radius-inner", 0.14);
       halo.setAttribute("radius-outer", 0.2);
       halo.setAttribute("rotation", "-90 0 0");
       halo.setAttribute("position", "0 0.01 0");
-      halo.setAttribute(
-        "material",
-        `color:${this.data.color}; emissive:${this.data.color}; emissiveIntensity:.25; transparent:true; opacity:.5`
-      );
+      halo.setAttribute("material", {
+        color: this.data.color,
+        emissive: this.data.color,
+        emissiveIntensity: 0.25,
+        transparent: true,
+        opacity: 0.5,
+      });
       halo.setAttribute(
         "animation__pulse",
-        "property: material.opacity; dir: alternate; from: .25; to: .8; dur: 1500; easing: easeInOutSine; loop: true"
+        "property: material.opacity; dir: alternate; from: 0.25; to: 0.8; dur: 1500; easing: easeInOutSine; loop: true"
       );
       const text = document.createElement("a-entity");
       text.setAttribute("position", "0 0.82 0");
@@ -338,6 +388,9 @@ AFRAME_READY.then((AFRAME) => {
       this.canvas.width = 512;
       this.canvas.height = 512;
       this.ctx = this.canvas.getContext("2d");
+      if (!this.ctx) {
+        console.warn("crt-program-screen: 2D context unavailable");
+      }
       this.texture = new THREE.CanvasTexture(this.canvas);
       this.texture.minFilter = THREE.LinearFilter;
       this.texture.magFilter = THREE.LinearFilter;
@@ -395,7 +448,7 @@ AFRAME_READY.then((AFRAME) => {
       }
     },
     drawFrame(time) {
-      if (!this.ctx || !this.programMeta) return;
+      if (!this.ctx || !this.programMeta?.draw) return;
       const payload = this.telemetry;
       this.programMeta.draw(
         this.canvas,
@@ -443,6 +496,7 @@ AFRAME_READY.then((AFRAME) => {
       const col = (c) => (c === "cyan" ? "#8be9fd" : c === "yellow" ? "#f1fa8c" : "#ff79c6");
       const themeColor = col(this.data.theme);
       const programMeta = getProgramById(this.data.program);
+      const programId = programMeta?.id || getProgramByIndex(0).id;
       const marqueeTitle = programMeta?.label || "ARCADE";
       const screenTint = programMeta?.tint || themeColor;
       const screenInterval = programMeta?.interval || 80;
@@ -452,7 +506,7 @@ AFRAME_READY.then((AFRAME) => {
       body.setAttribute("width", 0.9);
       body.setAttribute("height", 1.6);
       body.setAttribute("depth", 1.0);
-      body.setAttribute("material", "color:#111521; roughness:.9; metalness:.08");
+      body.setAttribute("material", { color: "#111521", roughness: 0.9, metalness: 0.08 });
       body.setAttribute("position", "0 0.8 0");
       body.setAttribute("shadow", "cast:true; receive:true");
 
@@ -462,13 +516,13 @@ AFRAME_READY.then((AFRAME) => {
       bezel.setAttribute("depth", 0.18);
       bezel.setAttribute("position", "0 1.25 0.47");
       bezel.setAttribute("rotation", "-20 0 0");
-      bezel.setAttribute("material", "color:#0e0e18; metalness:.3; roughness:.6");
+      bezel.setAttribute("material", { color: "#0e0e18", metalness: 0.3, roughness: 0.6 });
 
       const screen = document.createElement("a-entity");
       screen.setAttribute("position", "0 1.26 0.52");
       screen.setAttribute("rotation", "-20 0 0");
       screen.setAttribute("crt-program-screen", {
-        program: programMeta.id,
+        program: programId,
         width: 0.58,
         height: 0.42,
         tint: screenTint,
@@ -480,14 +534,20 @@ AFRAME_READY.then((AFRAME) => {
       glass.setAttribute("height", 0.46);
       glass.setAttribute("position", "0 1.26 0.535");
       glass.setAttribute("rotation", "-20 0 0");
-      glass.setAttribute("material", "color:#66b1ff; roughness:.1; metalness:.2; transparent:true; opacity:.1");
+      glass.setAttribute("material", {
+        color: "#66b1ff",
+        roughness: 0.1,
+        metalness: 0.2,
+        transparent: true,
+        opacity: 0.1,
+      });
 
       const marquee = document.createElement("a-box");
       marquee.setAttribute("width", 0.9);
       marquee.setAttribute("height", 0.22);
       marquee.setAttribute("depth", 0.2);
       marquee.setAttribute("position", "0 1.65 0.3");
-      marquee.setAttribute("material", "color:#0e0e18; roughness:.7; metalness:.5");
+      marquee.setAttribute("material", { color: "#0e0e18", roughness: 0.7, metalness: 0.5 });
       const mtxt = document.createElement("a-entity");
       mtxt.setAttribute("position", "0 1.65 0.41");
       mtxt.setAttribute("text", `value: ${marqueeTitle}; align: center; width: 2.4; color: ${themeColor}`);
@@ -498,30 +558,41 @@ AFRAME_READY.then((AFRAME) => {
       ctrl.setAttribute("depth", 0.5);
       ctrl.setAttribute("position", "0 0.95 0.4");
       ctrl.setAttribute("rotation", "-20 0 0");
-      ctrl.setAttribute("material", "color:#171b29; roughness:.8; metalness:.2");
+      ctrl.setAttribute("material", { color: "#171b29", roughness: 0.8, metalness: 0.2 });
 
       const stickBase = document.createElement("a-cylinder");
       stickBase.setAttribute("radius", 0.03);
       stickBase.setAttribute("height", 0.18);
       stickBase.setAttribute("position", "-0.18 1.0 0.54");
       stickBase.setAttribute("rotation", "-20 0 0");
-      stickBase.setAttribute("material", "color:#5b667a; roughness:.6; metalness:.6");
+      stickBase.setAttribute("material", { color: "#5b667a", roughness: 0.6, metalness: 0.6 });
       const stickBall = document.createElement("a-sphere");
       stickBall.setAttribute("radius", 0.05);
       stickBall.setAttribute("position", "-0.18 1.1 0.55");
-      stickBall.setAttribute(
-        "material",
-        `color:${themeColor}; roughness:.3; metalness:.6; emissive:${themeColor}; emissiveIntensity:.35`
-      );
+      stickBall.setAttribute("material", {
+        color: themeColor,
+        roughness: 0.3,
+        metalness: 0.6,
+        emissive: themeColor,
+        emissiveIntensity: 0.35,
+      });
 
       const btn1 = document.createElement("a-sphere");
       btn1.setAttribute("radius", 0.035);
       btn1.setAttribute("position", "0.06 1.0 0.56");
-      btn1.setAttribute("material", "color:#f1fa8c; emissive:#f1fa8c; emissiveIntensity:.4");
+      btn1.setAttribute("material", {
+        color: "#f1fa8c",
+        emissive: "#f1fa8c",
+        emissiveIntensity: 0.4,
+      });
       const btn2 = document.createElement("a-sphere");
       btn2.setAttribute("radius", 0.035);
       btn2.setAttribute("position", "0.14 0.98 0.55");
-      btn2.setAttribute("material", "color:#ff79c6; emissive:#ff79c6; emissiveIntensity:.4");
+      btn2.setAttribute("material", {
+        color: "#ff79c6",
+        emissive: "#ff79c6",
+        emissiveIntensity: 0.4,
+      });
 
       const coinBtn = document.createElement("a-entity");
       coinBtn.setAttribute("position", "0 0.6 0.5");
@@ -529,11 +600,15 @@ AFRAME_READY.then((AFRAME) => {
       cb.setAttribute("width", 0.18);
       cb.setAttribute("height", 0.1);
       cb.setAttribute("depth", 0.06);
-      cb.setAttribute("material", "color:#0d0f18; roughness:.7; metalness:.2");
+      cb.setAttribute("material", { color: "#0d0f18", roughness: 0.7, metalness: 0.2 });
       const led = document.createElement("a-sphere");
       led.setAttribute("radius", 0.025);
       led.setAttribute("position", "0 0.02 0.05");
-      led.setAttribute("material", `color:${themeColor}; emissive:${themeColor}; emissiveIntensity:.2`);
+      led.setAttribute("material", {
+        color: themeColor,
+        emissive: themeColor,
+        emissiveIntensity: 0.2,
+      });
       const lbl = document.createElement("a-entity");
       lbl.setAttribute("position", "0 -0.06 0.03");
       lbl.setAttribute("rotation", "-20 0 0");
@@ -549,10 +624,11 @@ AFRAME_READY.then((AFRAME) => {
       const togglePlay = () => {
         playing = !playing;
         screen.emit(playing ? "screen-play" : "screen-attract", {}, false);
-        led.setAttribute(
-          "material",
-          `color:${themeColor}; emissive:${themeColor}; emissiveIntensity:${playing ? 0.6 : 0.2}`
-        );
+        led.setAttribute("material", {
+          color: themeColor,
+          emissive: themeColor,
+          emissiveIntensity: playing ? 0.6 : 0.2,
+        });
         document.getElementById("orchestrator")?.emit("beep", {
           freq: playing ? 988 : 622,
           dur: 0.1,
@@ -584,7 +660,7 @@ AFRAME_READY.then((AFRAME) => {
       base.setAttribute("height", 2.0);
       base.setAttribute("depth", 1.2);
       base.setAttribute("position", "0 1.0 0");
-      base.setAttribute("material", "color:#0f131f; roughness:.9; metalness:.08");
+      base.setAttribute("material", { color: "#0f131f", roughness: 0.9, metalness: 0.08 });
       base.setAttribute("shadow", "cast:true; receive:true");
 
       const glass = document.createElement("a-box");
@@ -592,10 +668,15 @@ AFRAME_READY.then((AFRAME) => {
       glass.setAttribute("height", 1.3);
       glass.setAttribute("depth", 1.05);
       glass.setAttribute("position", "0 1.25 0");
-      glass.setAttribute(
-        "material",
-        "color:#9fd8ff; transparent:true; opacity:.15; roughness:.05; metalness:.1; emissive:#9fd8ff; emissiveIntensity:.05"
-      );
+      glass.setAttribute("material", {
+        color: "#9fd8ff",
+        transparent: true,
+        opacity: 0.15,
+        roughness: 0.05,
+        metalness: 0.1,
+        emissive: "#9fd8ff",
+        emissiveIntensity: 0.05,
+      });
 
       const prizes = document.createElement("a-entity");
       prizes.setAttribute("position", "0 0.6 0");
@@ -606,10 +687,11 @@ AFRAME_READY.then((AFRAME) => {
         p.setAttribute("height", s);
         p.setAttribute("depth", s);
         p.setAttribute("position", `${Math.random() * 0.6 - 0.3} 0 ${Math.random() * 0.6 - 0.3}`);
-        p.setAttribute(
-          "material",
-          `color: ${["#ff79c6", "#8be9fd", "#f1fa8c"][i % 3]}; roughness:.8; metalness:.2`
-        );
+        p.setAttribute("material", {
+          color: ["#ff79c6", "#8be9fd", "#f1fa8c"][i % 3],
+          roughness: 0.8,
+          metalness: 0.2,
+        });
         prizes.appendChild(p);
       }
 
@@ -618,17 +700,17 @@ AFRAME_READY.then((AFRAME) => {
       rail.setAttribute("height", 0.05);
       rail.setAttribute("depth", 0.05);
       rail.setAttribute("position", "0 1.85 0");
-      rail.setAttribute("material", "color:#6b7280; roughness:.6; metalness:.7");
+      rail.setAttribute("material", { color: "#6b7280", roughness: 0.6, metalness: 0.7 });
       const carriage = document.createElement("a-cylinder");
       carriage.setAttribute("radius", 0.04);
       carriage.setAttribute("height", 0.2);
       carriage.setAttribute("position", "0 1.75 0");
-      carriage.setAttribute("material", "color:#9aa1ac; roughness:.5; metalness:.8");
+      carriage.setAttribute("material", { color: "#9aa1ac", roughness: 0.5, metalness: 0.8 });
       const cable = document.createElement("a-cylinder");
       cable.setAttribute("radius", 0.008);
       cable.setAttribute("height", 0.4);
       cable.setAttribute("position", "0 1.55 0");
-      cable.setAttribute("material", "color:#9aa1ac; roughness:.6; metalness:.7");
+      cable.setAttribute("material", { color: "#9aa1ac", roughness: 0.6, metalness: 0.7 });
       const claw = document.createElement("a-entity");
       claw.setAttribute("position", "0 1.35 0");
       for (let i = 0; i < 3; i++) {
@@ -637,7 +719,7 @@ AFRAME_READY.then((AFRAME) => {
         arm.setAttribute("height", 0.16);
         arm.setAttribute("depth", 0.02);
         arm.setAttribute("rotation", `${i * 120} 0 45`);
-        arm.setAttribute("material", "color:#cbd5e1; metalness:.8; roughness:.3");
+        arm.setAttribute("material", { color: "#cbd5e1", metalness: 0.8, roughness: 0.3 });
         claw.appendChild(arm);
       }
 
@@ -647,11 +729,15 @@ AFRAME_READY.then((AFRAME) => {
       b.setAttribute("width", 0.24);
       b.setAttribute("height", 0.1);
       b.setAttribute("depth", 0.08);
-      b.setAttribute("material", "color:#0e0e18; roughness:.8; metalness:.2");
+      b.setAttribute("material", { color: "#0e0e18", roughness: 0.8, metalness: 0.2 });
       const led = document.createElement("a-sphere");
       led.setAttribute("radius", 0.03);
       led.setAttribute("position", "0 0.02 0.05");
-      led.setAttribute("material", "color:#8be9fd; emissive:#8be9fd; emissiveIntensity:.3");
+      led.setAttribute("material", {
+        color: "#8be9fd",
+        emissive: "#8be9fd",
+        emissiveIntensity: 0.3,
+      });
       const label = document.createElement("a-entity");
       label.setAttribute("position", "0 -0.06 0.01");
       label.setAttribute("text", "value: START; align: center; width: 1.4; color: #8be9fd");
@@ -709,7 +795,7 @@ AFRAME_READY.then((AFRAME) => {
       deck.setAttribute("depth", 2.2);
       deck.setAttribute("position", "0 0.55 0");
       deck.setAttribute("rotation", "-10 0 0");
-      deck.setAttribute("material", "color:#1b2330; roughness:.9; metalness:.2");
+      deck.setAttribute("material", { color: "#1b2330", roughness: 0.9, metalness: 0.2 });
       deck.setAttribute("shadow", "receive:true");
       const legs = [
         [-0.6, 0, -1.0],
@@ -722,7 +808,7 @@ AFRAME_READY.then((AFRAME) => {
         leg.setAttribute("radius", 0.05);
         leg.setAttribute("height", 0.6);
         leg.setAttribute("position", `${p[0]} 0.3 ${p[2]}`);
-        leg.setAttribute("material", "color:#6b7280; roughness:.6; metalness:.7");
+        leg.setAttribute("material", { color: "#6b7280", roughness: 0.6, metalness: 0.7 });
         r.appendChild(leg);
       });
       const glass = document.createElement("a-plane");
@@ -730,7 +816,13 @@ AFRAME_READY.then((AFRAME) => {
       glass.setAttribute("height", 2.1);
       glass.setAttribute("position", "0 0.62 0.03");
       glass.setAttribute("rotation", "-10 0 0");
-      glass.setAttribute("material", "color:#9fd8ff; transparent:true; opacity:.1; roughness:.05; metalness:.1");
+      glass.setAttribute("material", {
+        color: "#9fd8ff",
+        transparent: true,
+        opacity: 0.1,
+        roughness: 0.05,
+        metalness: 0.1,
+      });
       for (let i = 0; i < 8; i++) {
         const l = document.createElement("a-sphere");
         l.setAttribute("radius", 0.05);
@@ -739,10 +831,10 @@ AFRAME_READY.then((AFRAME) => {
         l.setAttribute("position", `${x} 0.62 ${z}`);
         l.setAttribute("rotation", "-10 0 0");
         const c = ["#ff79c6", "#8be9fd", "#f1fa8c"][i % 3];
-        l.setAttribute("material", `color:${c}; emissive:${c}; emissiveIntensity:.4`);
+        l.setAttribute("material", { color: c, emissive: c, emissiveIntensity: 0.4 });
         l.setAttribute(
           "animation__p",
-          `property: material.emissiveIntensity; dir: alternate; from: .2; to: .8; dur: ${800 + i * 120}; loop: true; easing: easeInOutSine`
+          `property: material.emissiveIntensity; dir: alternate; from: 0.2; to: 0.8; dur: ${800 + i * 120}; loop: true; easing: easeInOutSine`
         );
         r.appendChild(l);
       }
@@ -759,7 +851,7 @@ AFRAME_READY.then((AFRAME) => {
       body.setAttribute("height", 1.4);
       body.setAttribute("depth", 0.6);
       body.setAttribute("position", "0 0.7 0");
-      body.setAttribute("material", "color:#0f131f; roughness:.9; metalness:.08");
+      body.setAttribute("material", { color: "#0f131f", roughness: 0.9, metalness: 0.08 });
       const sign = document.createElement("a-entity");
       sign.setAttribute("position", "0 1.2 0.31");
       sign.setAttribute("text", "value: TOKENS; align: center; width: 2.4; color: #f1fa8c");
@@ -768,7 +860,7 @@ AFRAME_READY.then((AFRAME) => {
       slot.setAttribute("height", 0.18);
       slot.setAttribute("depth", 0.08);
       slot.setAttribute("position", "0 0.9 0.31");
-      slot.setAttribute("material", "color:#0e0e18; roughness:.8; metalness:.2");
+      slot.setAttribute("material", { color: "#0e0e18", roughness: 0.8, metalness: 0.2 });
       const btn = document.createElement("a-entity");
       btn.setAttribute("position", "0 0.4 0.3");
       btn.classList.add("interactive", "clickable");
@@ -776,11 +868,11 @@ AFRAME_READY.then((AFRAME) => {
       bb.setAttribute("width", 0.26);
       bb.setAttribute("height", 0.12);
       bb.setAttribute("depth", 0.08);
-      bb.setAttribute("material", "color:#0e0e18; roughness:.8; metalness:.2");
+      bb.setAttribute("material", { color: "#0e0e18", roughness: 0.8, metalness: 0.2 });
       const led = document.createElement("a-sphere");
       led.setAttribute("radius", 0.03);
       led.setAttribute("position", "0 0.02 0.05");
-      led.setAttribute("material", "color:#ff79c6; emissive:#ff79c6; emissiveIntensity:.4");
+      led.setAttribute("material", { color: "#ff79c6", emissive: "#ff79c6", emissiveIntensity: 0.4 });
       const lbl = document.createElement("a-entity");
       lbl.setAttribute("position", "0 -0.06 0.01");
       lbl.setAttribute("text", "value: DISPENSE; align: center; width: 1.6; color: #ff79c6");
@@ -794,10 +886,13 @@ AFRAME_READY.then((AFRAME) => {
         token.setAttribute("height", 0.02);
         token.setAttribute("position", "0 0.88 0.34");
         token.setAttribute("rotation", "90 0 0");
-        token.setAttribute(
-          "material",
-          "color:#f1fa8c; metalness:.8; roughness:.2; emissive:#f1fa8c; emissiveIntensity:.2"
-        );
+        token.setAttribute("material", {
+          color: "#f1fa8c",
+          metalness: 0.8,
+          roughness: 0.2,
+          emissive: "#f1fa8c",
+          emissiveIntensity: 0.2,
+        });
         r.appendChild(token);
         token.setAttribute("animation__out", "property: position; to: 0 0.88 0.6; dur: 250; easing: easeOutQuad");
         token.setAttribute(
@@ -829,7 +924,11 @@ AFRAME_READY.then((AFRAME) => {
         });
         const ambient = document.querySelector("#lights a-entity[light][light^='type: ambient']") ||
           document.querySelector("#lights").children[0];
-        ambient?.setAttribute("light", "type: ambient; color: #cfe4ff; intensity:" + (this.power ? 0.25 : 0.05));
+        ambient?.setAttribute("light", {
+          type: "ambient",
+          color: "#cfe4ff",
+          intensity: this.power ? 0.25 : 0.05,
+        });
       });
       scene.addEventListener("arcade-fog", () => {
         const f = scene.getAttribute("fog");
