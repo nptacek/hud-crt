@@ -24,13 +24,15 @@ const fragmentShader = `
   uniform vec3 tint;
   void main(){
     vec2 centered = vUv - 0.5;
-    float vignette = smoothstep(0.7, 0.05, length(centered));
+    float dist = length(centered);
+    float vignette = 1.0 - smoothstep(0.32, 0.68, dist);
     float scan = 0.75 + 0.25 * sin(vUv.y * 620.0 + time * 11.0);
     vec3 base = texture2D(map, vUv).rgb;
     base *= scan;
-    float glow = max(max(base.r, base.g), base.b);
-    vec3 glowTint = tint * glow * (0.35 + energy * 0.25);
-    vec3 color = mix(base, base + glowTint, 0.35 * energy);
+    vec3 boosted = base + tint * 0.06 * energy;
+    float glow = max(max(boosted.r, boosted.g), boosted.b);
+    vec3 glowTint = tint * glow * (0.4 + energy * 0.3);
+    vec3 color = mix(boosted, boosted + glowTint, 0.45 * energy);
     color *= vignette;
     gl_FragColor = vec4(color, 1.0);
   }
@@ -48,6 +50,16 @@ function createTelemetryState(seed, programMeta) {
   ];
   const section = sectionNames[Math.floor(seed * sectionNames.length) % sectionNames.length];
   const scanType = programMeta?.label ?? "Arcade Sequence";
+
+  const baseFront = [
+    { baseX: 0.12, baseY: 0.78 },
+    { baseX: 0.28, baseY: 0.72 },
+    { baseX: 0.48, baseY: 0.76 },
+    { baseX: 0.7, baseY: 0.64 },
+    { baseX: 0.86, baseY: 0.55 },
+  ];
+  const anomalyTemplate = [0.18, 0.38, 0.62, 0.82];
+  const baseWaterTemp = 4.2 + seed * 0.6;
 
   return {
     seed,
@@ -105,6 +117,50 @@ function createTelemetryState(seed, programMeta) {
       ],
       lifeSupportStatus: "NOMINAL",
       lastUpdateTime: now,
+      cycles: 3 + Math.floor(seed * 3),
+      cyclone: { baseX: 0.54 + (seed - 0.5) * 0.12, baseY: 0.42 + (seed - 0.5) * 0.08 },
+      front: baseFront.map((p) => ({ ...p, x: p.baseX, y: p.baseY })),
+      temperature: 24 + seed * 6,
+      humidity: 62 + seed * 12,
+      latency: 1.4 + seed * 0.6,
+      packetLoss: 0.004 + seed * 0.003,
+      cwd: "/systems/neon",
+      meters: Array.from({ length: 5 }, (_, i) => ({ label: `CH-${i + 1}`, value: 0.45 + seed * 0.25 })),
+      scrollSpeed: 1.4 + seed * 0.6,
+      glyphVariance: 0.35 + seed * 0.2,
+      anomalies: anomalyTemplate.map((position, idx) => ({ tape: (idx * 2) % 9, position })),
+      tapeJitter: 0.14 + seed * 0.1,
+      archiveAge: 1024 + Math.floor(seed * 420),
+      coralNodes: 10 + Math.floor(seed * 6),
+      currents: 4 + Math.floor(seed * 4),
+      nutrientFlow: 0.48 + seed * 0.12,
+      reefStress: 0.22 + seed * 0.1,
+      bioDensity: 0.45 + seed * 0.2,
+      pings: [
+        { baseDistance: 0.42, distance: 0.42, intensity: 0.72, label: "RIDGE" },
+        { baseDistance: 0.68, distance: 0.68, intensity: 0.58, label: "CONTACT" },
+        { baseDistance: 0.85, distance: 0.85, intensity: 0.66, label: "VESSEL" },
+      ],
+      depth: 3200 + seed * 320,
+      pressure: 32 + seed * 4,
+      waterTemp: baseWaterTemp,
+      power: 78 + seed * 8,
+      telemetry: [
+        ["DEPTH", `${(3200 + seed * 320).toFixed(0)}m`],
+        ["TEMP", `${baseWaterTemp.toFixed(1)}°C`],
+        ["PRESS", `${(32 + seed * 4).toFixed(1)}MPa`],
+      ],
+      gravityWarning: 0.2 + seed * 0.3,
+      syncVariance: 0.18 + seed * 0.2,
+      throughput: 0.48 + seed * 0.22,
+      heartbeat: 0.5 + seed * 0.2,
+      heatLevel: 0.55 + seed * 0.2,
+      cookMinutes: 2 + seed * 1.4,
+      status: [
+        ["DOCK", "READY"],
+        ["AIRLOCK", "SEALED"],
+        ["TRAJ", "12.0°"],
+      ],
     },
   };
 }
@@ -173,6 +229,76 @@ function updateTelemetryState(state, time, delta, playing) {
   const stress = Math.max(0, Math.min(1, (90 - state.systemData.signalStrength) / 40));
   state.systemData.lifeSupportStatus = stress > 0.7 ? "ALERT" : stress > 0.35 ? "CHECK" : "NOMINAL";
   state.systemData.lastUpdateTime = Date.now();
+  state.systemData.cycles = 3 + Math.floor((Math.sin(t * 0.45 + state.seed) + 1) * 2);
+  if (state.systemData.cyclone) {
+    const cx = state.systemData.cyclone.baseX ?? state.systemData.cyclone.x ?? 0.5;
+    const cy = state.systemData.cyclone.baseY ?? state.systemData.cyclone.y ?? 0.4;
+    state.systemData.cyclone.x = cx + Math.sin(t * 0.2 + state.seed) * 0.02;
+    state.systemData.cyclone.y = cy + Math.cos(t * 0.18 + state.seed) * 0.02;
+  }
+  if (state.systemData.front) {
+    state.systemData.front = state.systemData.front.map((point, idx) => {
+      const baseX = point.baseX ?? point.x;
+      const baseY = point.baseY ?? point.y;
+      return {
+        ...point,
+        x: baseX + Math.sin(t * 0.25 + idx + state.seed) * 0.02,
+        y: baseY + Math.cos(t * 0.28 + idx + state.seed) * 0.018,
+        baseX,
+        baseY,
+      };
+    });
+  }
+  state.systemData.temperature = 24 + Math.sin(t * 0.24 + state.seed) * 6 * intensity;
+  state.systemData.waterTemp = 4 + Math.sin(t * 0.27 + state.seed) * 0.8;
+  state.systemData.humidity = 64 + Math.cos(t * 0.27 + state.seed) * 12;
+  state.systemData.latency = 1.2 + Math.abs(Math.sin(t * 0.6 + state.seed)) * 1.1;
+  state.systemData.packetLoss = 0.002 + Math.abs(Math.sin(t * 0.8 + state.seed)) * 0.0025;
+  state.systemData.meters = state.systemData.meters.map((meter, idx) => ({
+    ...meter,
+    label: meter.label ?? `CH-${idx + 1}`,
+    value: 0.35 + 0.6 * Math.abs(Math.sin(t * 0.55 + idx + state.seed)),
+  }));
+  state.systemData.scrollSpeed = 1.2 + 0.5 * intensity + Math.sin(t * 0.33 + state.seed) * 0.35;
+  state.systemData.glyphVariance = 0.3 + Math.abs(Math.sin(t * 0.48 + state.seed)) * 0.5;
+  state.systemData.anomalies = state.systemData.anomalies.map((anomaly, idx) => ({
+    ...anomaly,
+    position: (anomaly.position + Math.sin(t * 0.3 + idx + state.seed) * 0.003 + 1) % 1,
+  }));
+  state.systemData.tapeJitter = 0.1 + Math.abs(Math.sin(t * 0.42 + state.seed)) * 0.2;
+  state.systemData.archiveAge += 0.6 * intensity;
+  state.systemData.coralNodes = 10 + Math.floor((Math.sin(t * 0.22 + state.seed) + 1) * 4);
+  state.systemData.currents = 4 + Math.floor((Math.cos(t * 0.26 + state.seed) + 1) * 3);
+  state.systemData.nutrientFlow = 0.46 + Math.sin(t * 0.35 + state.seed) * 0.1 * intensity;
+  state.systemData.reefStress = 0.18 + Math.abs(Math.sin(t * 0.54 + state.seed)) * 0.28 * (2 - intensity);
+  state.systemData.bioDensity = 0.42 + Math.sin(t * 0.29 + state.seed) * 0.18;
+  state.systemData.depth = 3180 + Math.sin(t * 0.2 + state.seed) * 260;
+  state.systemData.pressure = 31.5 + Math.cos(t * 0.18 + state.seed) * 3.4;
+  state.systemData.power += (74 + Math.sin(t * 0.58 + state.seed) * 8 * intensity - state.systemData.power) * 0.18;
+  state.systemData.pings = state.systemData.pings.map((ping, idx) => {
+    const base = ping.baseDistance ?? ping.distance;
+    return {
+      ...ping,
+      distance: Math.min(0.95, Math.max(0.2, base + Math.sin(t * 0.42 + idx + state.seed) * 0.08)),
+      intensity: 0.45 + Math.abs(Math.sin(t * 0.65 + idx + state.seed)) * 0.45,
+    };
+  });
+  state.systemData.telemetry = [
+    ["DEPTH", `${state.systemData.depth.toFixed(0)}m`],
+    ["TEMP", `${state.systemData.waterTemp.toFixed(1)}°C`],
+    ["PRESS", `${state.systemData.pressure.toFixed(1)}MPa`],
+  ];
+  state.systemData.gravityWarning = Math.max(0, Math.min(1, 0.5 + Math.sin(t * 0.4 + state.seed) * 0.5));
+  state.systemData.syncVariance = 0.12 + Math.abs(Math.sin(t * 0.33 + state.seed)) * (playing ? 0.35 : 0.2);
+  state.systemData.throughput += (0.48 + Math.sin(t * 0.5 + state.seed) * 0.28 * intensity - state.systemData.throughput) * 0.2;
+  state.systemData.heartbeat = 0.5 + Math.sin(t * 1.2 + state.seed) * 0.2 * intensity;
+  state.systemData.heatLevel += (0.58 + Math.sin(t * 0.37 + state.seed) * 0.22 * intensity - state.systemData.heatLevel) * 0.15;
+  state.systemData.cookMinutes = 1.6 + Math.abs(Math.sin(t * 0.14 + state.seed)) * 2.6;
+  state.systemData.status = [
+    ["DOCK", state.systemData.dockingProgress > 0.68 ? "ALIGN" : "TRACK"],
+    ["AIRLOCK", state.systemData.laneDensity > 0.38 ? "SEALED" : "CYCLE"],
+    ["TRAJ", `${(12 + Math.sin(t * 0.3 + state.seed) * 6).toFixed(2)}°`],
+  ];
 }
 
 function ensureMesh(el, geometry, material) {
@@ -395,6 +521,7 @@ AFRAME_READY.then((AFRAME) => {
       this.texture.minFilter = THREE.LinearFilter;
       this.texture.magFilter = THREE.LinearFilter;
       this.texture.generateMipmaps = false;
+      this.texture.colorSpace = THREE.SRGBColorSpace;
       this.uniforms = {
         map: { value: this.texture },
         time: { value: 0 },
@@ -406,6 +533,8 @@ AFRAME_READY.then((AFRAME) => {
         vertexShader,
         fragmentShader,
         transparent: true,
+        side: THREE.DoubleSide,
+        depthWrite: false,
       });
       this.nextDraw = 0;
       this.playing = true;
@@ -450,14 +579,26 @@ AFRAME_READY.then((AFRAME) => {
     drawFrame(time) {
       if (!this.ctx || !this.programMeta?.draw) return;
       const payload = this.telemetry;
-      this.programMeta.draw(
-        this.canvas,
-        this.ctx,
-        payload.scan,
-        payload.tech,
-        payload.chromatic,
-        payload.systemData
-      );
+      try {
+        this.programMeta.draw(
+          this.canvas,
+          this.ctx,
+          payload.scan,
+          payload.tech,
+          payload.chromatic,
+          payload.systemData
+        );
+      } catch (error) {
+        console.error(`CRT program ${this.programMeta.id} failed`, error);
+        this.ctx.save();
+        this.ctx.fillStyle = "#060514";
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.fillStyle = "#ff79c6";
+        this.ctx.font = "24px 'Courier New', monospace";
+        this.ctx.textAlign = "center";
+        this.ctx.fillText("SCREEN ERROR", this.canvas.width / 2, this.canvas.height / 2);
+        this.ctx.restore();
+      }
       this.texture.needsUpdate = true;
       this.uniforms.time.value = time / 1000;
     },
@@ -912,22 +1053,34 @@ AFRAME_READY.then((AFRAME) => {
     init() {
       this.power = true;
       const scene = this.el.sceneEl;
+      const captureLight = (id, offFactor = 0) => {
+        const el = document.getElementById(id);
+        if (!el) return null;
+        const light = el.getAttribute("light");
+        if (!light) return null;
+        const baseIntensity = light.intensity ?? 1;
+        return {
+          el,
+          data: { ...light, intensity: baseIntensity },
+          baseIntensity,
+          offIntensity: baseIntensity * offFactor,
+        };
+      };
+      this.neonLights = ["neonA", "neonB", "neonC"].map((id) => captureLight(id, 0)).filter(Boolean);
+      this.sceneLights = [
+        captureLight("ambientMain", 0.18),
+        captureLight("hemiFill", 0.2),
+        captureLight("keyLight", 0.08),
+        captureLight("rimLight", 0.08),
+        captureLight("centerGlow", 0.0),
+        captureLight("overhead", 0.05),
+      ].filter(Boolean);
       scene.addEventListener("arcade-power", () => {
         this.power = !this.power;
-        const neon = ["neonA", "neonB", "neonC"].map((id) => document.getElementById(id));
-        neon.forEach((n) => {
-          if (!n) return;
-          const light = n.getAttribute("light");
-          if (!light) return;
-          const original = light.intensity ?? 0.6;
-          n.setAttribute("light", { ...light, intensity: this.power ? original : 0.0 });
-        });
-        const ambient = document.querySelector("#lights a-entity[light][light^='type: ambient']") ||
-          document.querySelector("#lights").children[0];
-        ambient?.setAttribute("light", {
-          type: "ambient",
-          color: "#cfe4ff",
-          intensity: this.power ? 0.25 : 0.05,
+        const toggleEntries = [...this.sceneLights, ...this.neonLights];
+        toggleEntries.forEach((entry) => {
+          const intensity = this.power ? entry.baseIntensity : entry.offIntensity;
+          entry.el.setAttribute("light", { ...entry.data, intensity });
         });
       });
       scene.addEventListener("arcade-fog", () => {
