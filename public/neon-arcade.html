@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Neon Quarter — Video Game Arcade Room</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script type="module" src="/scripts/neon-arcade.js" defer></script>
+    <style>
+      body {
+        margin: 0;
+        background: #000;
+      }
+      .hud {
+        position: fixed;
+        left: 12px;
+        top: 12px;
+        padding: 8px 10px;
+        background: rgba(0, 0, 0, 0.6);
+        color: #eaf2ff;
+        font: 12px/1.35 system-ui, ui-sans-serif;
+        border-radius: 8px;
+        letter-spacing: 0.2px;
+        z-index: 1;
+      }
+      .hud b {
+        color: #ff79c6;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hud">
+      <div><b>Neon Quarter</b> — Video Game Arcade Room</div>
+      <div>WASD + Mouse · Click cabinets (Insert Coin), claw machine (Start), token machine (Dispense)</div>
+      <div>Pedestals: Power · Music · Fog</div>
+    </div>
+
+    <a-scene
+      background="color: #0b0d16"
+      fog="type: exponential; color: #0b0d16; density: 0.02"
+      renderer="antialias: true; physicallyCorrectLights: true; colorManagement: true; logarithmicDepthBuffer: true; shadow: true"
+      stats
+    >
+      <a-entity id="lights">
+        <a-entity light="type: ambient; color: #cfe4ff; intensity: 0.25"></a-entity>
+        <a-entity light="type: hemisphere; color: #e6f2ff; groundColor: #0b0d16; intensity: 0.25"></a-entity>
+        <a-entity id="fill" position="-6 5 4" light="type: directional; color: #ffffff; intensity: 0.15; castShadow: true"></a-entity>
+        <a-entity id="neonA" position="-6 3 -2" light="type: point; color: #ff79c6; intensity: 0.6; distance: 8"></a-entity>
+        <a-entity id="neonB" position="6 3 -2" light="type: point; color: #8be9fd; intensity: 0.6; distance: 8"></a-entity>
+        <a-entity id="neonC" position="0 3 5" light="type: point; color: #f1fa8c; intensity: 0.5; distance: 8"></a-entity>
+      </a-entity>
+
+      <a-entity id="room" grid-floor="sizeX: 16; sizeZ: 12; step: 0.5">
+        <a-plane id="floor" rotation="-90 0 0" width="16" height="12" material="color: #1b1f2e; roughness: 1; metalness: 0" shadow="receive: true"></a-plane>
+        <a-plane id="ceiling" position="0 5.0 0" rotation="90 0 0" width="16" height="12" material="color: #141826; roughness: 1"></a-plane>
+        <a-plane id="wallN" position="0 2.5 -6" rotation="0 0 0" width="16" height="5" material="color: #23283b; roughness: .95; metalness: .04"></a-plane>
+        <a-plane id="wallS" position="0 2.5 6" rotation="0 180 0" width="16" height="5" material="color: #23283b; roughness: .95; metalness: .04"></a-plane>
+        <a-plane id="wallW" position="-8 2.5 0" rotation="0 90 0" width="12" height="5" material="color: #23283b; roughness: .95; metalness: .04"></a-plane>
+        <a-plane id="wallE" position="8 2.5 0" rotation="0 -90 0" width="12" height="5" material="color: #23283b; roughness: .95; metalness: .04"></a-plane>
+        <a-entity neon-tube="length: 16; color: #ff79c6" position="0 4.7 -5.9" rotation="0 0 0"></a-entity>
+        <a-entity neon-tube="length: 16; color: #8be9fd" position="0 4.7 5.9" rotation="0 180 0"></a-entity>
+        <a-entity neon-tube="length: 12; color: #f1fa8c" position="-7.9 4.7 0" rotation="0 90 0"></a-entity>
+        <a-entity neon-tube="length: 12; color: #ff79c6" position="7.9 4.7 0" rotation="0 -90 0"></a-entity>
+        <a-entity position="0 3.4 -5.7">
+          <a-plane width="4.6" height="1.2" material="color: #0f0f18; roughness: .9; metalness: .1"></a-plane>
+          <a-entity position="0 0 0.01" text="value: ARCADE; align: center; width: 8; color: #ff79c6"></a-entity>
+          <a-entity position="0 -0.35 0.01" text="value: INSERT COIN; align: center; width: 4; color: #8be9fd"></a-entity>
+        </a-entity>
+      </a-entity>
+
+      <a-entity id="rowLeft" position="-4.5 0 -2.5" arcade-row="count: 5; spacing: 2; theme: pink; programStart: 0"></a-entity>
+      <a-entity id="rowRight" position="4.5 0 -2.5" rotation="0 180 0" arcade-row="count: 5; spacing: 2; theme: cyan; programStart: 5"></a-entity>
+
+      <a-entity id="claw" position="-6.6 0 3.6" claw-machine></a-entity>
+      <a-entity id="pinball" position="6.2 0 3.8" pinball-table></a-entity>
+      <a-entity id="token" position="0 0 4.2" token-machine></a-entity>
+
+      <a-entity id="controls" position="0 0 0.2">
+        <a-entity fx-pedestal="label: Power; event: arcade-power" position="-1.6 0 0"></a-entity>
+        <a-entity fx-pedestal="label: Music; event: arcade-music" position="0 0 0"></a-entity>
+        <a-entity fx-pedestal="label: Fog; event: arcade-fog" position="1.6 0 0"></a-entity>
+      </a-entity>
+
+      <a-entity id="rig" position="0 1.6 3.5">
+        <a-entity id="camera" camera look-controls wasd-controls="acceleration: 10" cursor="rayOrigin: mouse"></a-entity>
+        <a-entity laser-controls="hand: right"></a-entity>
+        <a-entity laser-controls="hand: left"></a-entity>
+      </a-entity>
+
+      <a-entity id="orchestrator" arcade-orchestrator beeper ambient-hum></a-entity>
+    </a-scene>
+  </body>
+</html>
