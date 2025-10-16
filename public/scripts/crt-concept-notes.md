@@ -24,41 +24,26 @@ This document captures the current CRT-inspired canvases in `public/scripts` and
 ### `hud-vr.js`
 - Houses the CRT shader pipeline that bends and distorts the render, layering scanlines, noise, bloom, and tint mixing so every interface inherits phosphor warmth and screen curvature.【F:public/scripts/hud-vr.js†L1-L140】
 
-## Future-Facing Concepts
+## New Implementations
 
-### 1. Event Horizon Synchronizer
-A gravitational navigation scope that feels like piloting a singularity skiff.
-- **Visual Core:** Elliptical distortion grid that warps toward a central void; concentric rings shear and lens-flare in response to proximity warnings.
-- **Palette:** Deep ultramarine base with saturated magenta gravitational shear bands and gold telemetry strokes for contrast.
-- **Dynamics:** `techParams.energyLevel` modulates ring precession speed while `scanParams.scanProgress` ripples gravitational waves across the grid.
-- **CRT Touches:** Thick vertical retrace effect on the void and faint chromatic splitting along the horizon lines.
+### `draw-Interface-event-horizon-synchronizer.js`
+- Elliptical distortion well layered with warping rings that respond to energy levels and gravity warnings, turning the singularity skiff pitch into a playable panel.【F:public/scripts/draw-Interface-event-horizon-synchronizer.js†L1-L184】
+- Dual telemetry bands and animated histogram translate scan cohesion, shear indices, and drift data into glowing CRT-style diagnostics.【F:public/scripts/draw-Interface-event-horizon-synchronizer.js†L115-L170】
 
-### 2. Neon Cathedral Command Deck
-A vaulted, cathedral-like cockpit where light pillars replace stained glass.
-- **Visual Core:** Symmetrical vertical panels representing “organ pipes” that pulse with inbound data; vaulted wireframes converge above to imply height.
-- **Palette:** Cyan glass panes, violet shadows, and white plasma tracers that flicker in sync with system heartbeat.
-- **Dynamics:** `systemData` routes (e.g., throughput, latency) render as climbing light columns, with horizontal crossbeams flashing warnings in red when thresholds spike.
-- **CRT Touches:** Dynamic moiré dithering across the tall panes, subtle geometric scanlines bending with the vaulted curvature from `hud-vr.js` post-processing.
+### `draw-Interface-neon-cathedral-command-deck.js`
+- Vaulted wireframes, glowing data pillars, and heartbeat-reactive crossbeams deliver the cathedral cockpit ambience with throughput-driven motion.【F:public/scripts/draw-Interface-neon-cathedral-command-deck.js†L1-L163】
+- Bottom buffer visualizer syncs with throughput and heartbeat to reinforce the organ-pipe metaphor while retaining CRT scanline patina.【F:public/scripts/draw-Interface-neon-cathedral-command-deck.js†L113-L161】
 
-### 3. Chrono Archive Time Table
-An archival browser that manifests timelines as stacked CRT tapes.
-- **Visual Core:** Layered horizontal “time tapes” with glow embossing; each tape cycles segmented glyphs representing eras and branching futures.
-- **Palette:** Desaturated teal substrate with amber time markers, overlaid by grayscale anomaly highlights.
-- **Dynamics:** Scrubbing through time adjusts parallax offset; `scanParams.scanProgress` animates forward scanning lasers while `techParams` sets tape jitter intensity.
-- **CRT Touches:** Temporal noise bursts mimic dropouts, and a gentle desaturation bloom evokes aged phosphors being overdriven.
+### `draw-Interface-chrono-archive-time-table.js`
+- Layered archival “tapes” animate segmented glyphs, anomaly markers, and jitter tuned by energy modulation, realising the temporal browser concept.【F:public/scripts/draw-Interface-chrono-archive-time-table.js†L1-L132】
+- Scrubber halo and telemetry rail expose scan position, jitter, and archive age with phosphor-friendly palettes.【F:public/scripts/draw-Interface-chrono-archive-time-table.js†L134-L179】
 
-### 4. Bio-Luminal Reef Monitor
-A living reef telemetry console fusing organic motion with synthwave hues.
-- **Visual Core:** Hexagonal viewport filled with vector coral silhouettes and drifting micro-organisms, all outlined in electric turquoise.
-- **Palette:** Midnight navy field, bioluminescent aquas, and coral pink alerts that pop like emergency strobes.
-- **Dynamics:** Environmental metrics spawn particle schools, with `scanParams` influencing bloom pulses and `systemData` driving nutrient currents along bezier channels.
-- **CRT Touches:** Rolling scanlines double as tidal oscillations; curvature shader adds a glass aquarium feel around the interface perimeter.
+### `draw-Interface-bio-luminal-reef-monitor.js`
+- Hexagonal viewport, coral filigree, and bioluminescent organisms react to scan resonance and reef metrics to simulate living telemetry glass.【F:public/scripts/draw-Interface-bio-luminal-reef-monitor.js†L1-L158】
+- Nutrient currents and status readouts convert density, stress, and flow into luminous CRT graphing with aquatic scanlines.【F:public/scripts/draw-Interface-bio-luminal-reef-monitor.js†L160-L215】
 
-### 5. Interlaced Orbital Bazaar
-Market dashboard for trading nodes scattered across orbiting platforms.
-- **Visual Core:** Circular market map with rotating docking bays, ticker arcs, and vendor glyphs blinking in rhythmic patterns.
-- **Palette:** Rich emerald gridlines, amber trade alerts, and violet docking lanes.
-- **Dynamics:** `techParams.energyLevel` influences orbital rotation rate; trade volume from `systemData` thickens lane trails and intensifies neon glows.
-- **CRT Touches:** Interlaced scanlines emphasize ticker motion while chromatic offsets simulate misaligned projection overlays.
+### `draw-Interface-interlaced-orbital-bazaar.js`
+- Emerald grid, orbit lanes, and vendor glyphs translate market rotations and trade volume into a circular bazaar dashboard.【F:public/scripts/draw-Interface-interlaced-orbital-bazaar.js†L1-L124】
+- Interlaced ticker and control frame communicate alerts, lane density, and energy levels with layered CRT interlace effects.【F:public/scripts/draw-Interface-interlaced-orbital-bazaar.js†L126-L188】
 
-These concepts embrace the existing shader stack and procedural patterns while broadening the experiential vocabulary—each is ready to prototype by remixing the canvases already thriving in `public/scripts`.
+Each canvas now ships as a dedicated script in `public/scripts`, extending the CRT suite beyond the original horizon runner toward new retro-futurist missions.
