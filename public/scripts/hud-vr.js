@@ -781,31 +781,16 @@ function ensureHudRegistered(AFRAME) {
   }
 }
 
-function waitForDomReady() {
-  if (document.readyState === "complete" || document.readyState === "interactive") {
-    return Promise.resolve();
-  }
-  return new Promise((resolve) => {
-    document.addEventListener("DOMContentLoaded", resolve, { once: true });
-  });
+if (window.AFRAME) {
+  ensureHudRegistered(window.AFRAME);
+} else {
+  window.addEventListener(
+    "aframe-loaded",
+    () => {
+      if (window.AFRAME) {
+        ensureHudRegistered(window.AFRAME);
+      }
+    },
+    { once: true }
+  );
 }
-
-function waitForAframe() {
-  if (window.AFRAME) {
-    return Promise.resolve(window.AFRAME);
-  }
-  return new Promise((resolve) => {
-    window.addEventListener(
-      "aframe-loaded",
-      () => {
-        resolve(window.AFRAME);
-      },
-      { once: true }
-    );
-  });
-}
-
-Promise.all([waitForDomReady(), waitForAframe()]).then(([, AFRAME]) => {
-  if (!AFRAME) return;
-  ensureHudRegistered(AFRAME);
-});
