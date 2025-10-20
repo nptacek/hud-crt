@@ -1,5 +1,62 @@
 import { drawInterface } from "./draw-Interface.js";
 
+const { AFRAME } = window;
+
+if (!AFRAME) {
+  throw new Error("A-Frame must be loaded before registering shaders");
+}
+
+AFRAME.registerShader("yohei-landscape", {
+  schema: {
+    topColor: { type: "color", default: "#162448" },
+    horizonColor: { type: "color", default: "#2f4f7f" },
+    bottomColor: { type: "color", default: "#040911" },
+    horizonHeight: { type: "number", default: 0.4 },
+    horizonSoftness: { type: "number", default: 0.12 },
+    starDensity: { type: "number", default: 0.995 }
+  },
+  vertexShader: `
+    varying vec2 vUv;
+
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    varying vec2 vUv;
+
+    uniform vec3 topColor;
+    uniform vec3 horizonColor;
+    uniform vec3 bottomColor;
+    uniform float horizonHeight;
+    uniform float horizonSoftness;
+    uniform float starDensity;
+
+    float random(vec2 uv) {
+      return fract(sin(dot(uv.xy, vec2(12.9898, 78.233))) * 43758.5453);
+    }
+
+    void main() {
+      float horizonBlend = smoothstep(
+        horizonHeight - horizonSoftness,
+        horizonHeight + horizonSoftness,
+        vUv.y
+      );
+
+      vec3 gradientColor = mix(bottomColor, topColor, smoothstep(0.0, 1.0, vUv.y));
+      gradientColor = mix(gradientColor, horizonColor, horizonBlend);
+
+      vec2 starUv = floor(vUv * vec2(200.0, 120.0));
+      float starValue = random(starUv);
+      float starMask = step(starDensity, starValue) * (1.0 - horizonBlend);
+      vec3 starColor = vec3(0.65, 0.78, 1.0) * starMask;
+
+      gl_FragColor = vec4(gradientColor + starColor, 1.0);
+    }
+  `
+});
+
 const vertexShader = `
   varying vec2 vUv;
   void main() {
