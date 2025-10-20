@@ -621,10 +621,11 @@ function registerLandscapeDisplayComponent(AFRAME) {
           return;
         }
       }
+      const timeSeconds = time / 1000;
       this.uniformTargets.forEach((material) => {
         const uniform = material.uniforms?.[this.data.timeUniform];
         if (!uniform || uniform.__hudManagedTime) return;
-        uniform.value = time;
+        uniform.value = timeSeconds;
       });
     },
   });
