@@ -469,6 +469,7 @@ function registerCrtDisplayComponent(AFRAME) {
         vertexShader,
         fragmentShader,
       });
+      this.uniforms.time.__hudManagedTime = true;
 
       const applyMaterial = () => {
         const mesh = this.el.getObject3D("mesh");
@@ -532,6 +533,100 @@ function registerCrtDisplayComponent(AFRAME) {
       if (this.system.consumeTextureDirty() && this.texture) {
         this.texture.needsUpdate = true;
       }
+    },
+  });
+}
+
+function registerLandscapeDisplayComponent(AFRAME) {
+  if (AFRAME.components && AFRAME.components["landscape-display"]) {
+    return;
+  }
+
+  const THREE = AFRAME.THREE;
+
+  AFRAME.registerComponent("landscape-display", {
+    schema: {
+      timeUniform: { type: "string", default: "time" },
+      resolutionUniform: { type: "string", default: "resolution" },
+    },
+    init() {
+      this.uniformTargets = [];
+      this.size = new THREE.Vector2(1, 1);
+      this.renderer = null;
+      this.handleResize = () => {
+        this.updateResolutionUniform();
+      };
+      this.onObject3DSet = (evt) => {
+        if (!evt || evt.detail.type === "mesh") {
+          this.refreshUniformTargets();
+        }
+      };
+      this.el.addEventListener("object3dset", this.onObject3DSet);
+      this.refreshUniformTargets();
+      this.ensureRenderer();
+    },
+    remove() {
+      this.el.removeEventListener("object3dset", this.onObject3DSet);
+      if (this.renderer) {
+        window.removeEventListener("resize", this.handleResize);
+      }
+    },
+    refreshUniformTargets() {
+      const mesh = this.el.getObject3D("mesh");
+      if (!mesh) {
+        this.uniformTargets = [];
+        return;
+      }
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      this.uniformTargets = materials.filter((material) => material && material.uniforms);
+      this.updateResolutionUniform();
+    },
+    ensureRenderer() {
+      if (this.renderer || !this.el.sceneEl || !this.el.sceneEl.renderer) {
+        return;
+      }
+      this.renderer = this.el.sceneEl.renderer;
+      window.addEventListener("resize", this.handleResize);
+      this.updateResolutionUniform();
+    },
+    updateResolutionUniform() {
+      if (!this.renderer || !this.uniformTargets || this.uniformTargets.length === 0) {
+        return;
+      }
+      this.renderer.getSize(this.size);
+      this.uniformTargets.forEach((material) => {
+        const uniform = material.uniforms?.[this.data.resolutionUniform];
+        if (!uniform) return;
+        const value = uniform.value;
+        if (value && typeof value.set === "function") {
+          value.set(this.size.x, this.size.y);
+        } else if (Array.isArray(value) && value.length >= 2) {
+          value[0] = this.size.x;
+          value[1] = this.size.y;
+        } else {
+          uniform.value = Math.max(this.size.x, this.size.y);
+        }
+        if (material.uniformsNeedUpdate !== undefined) {
+          material.uniformsNeedUpdate = true;
+        } else {
+          material.needsUpdate = true;
+        }
+      });
+    },
+    tick(time) {
+      this.ensureRenderer();
+      if (!this.uniformTargets || this.uniformTargets.length === 0) {
+        this.refreshUniformTargets();
+        if (!this.uniformTargets || this.uniformTargets.length === 0) {
+          return;
+        }
+      }
+      const timeSeconds = time / 1000;
+      this.uniformTargets.forEach((material) => {
+        const uniform = material.uniforms?.[this.data.timeUniform];
+        if (!uniform || uniform.__hudManagedTime) return;
+        uniform.value = timeSeconds;
+      });
     },
   });
 }
@@ -776,6 +871,7 @@ function ensureHudRegistered(AFRAME) {
     registerHudTelemetrySystem(AFRAME);
     registerHudDrawComponent(AFRAME);
     registerCrtDisplayComponent(AFRAME);
+    registerLandscapeDisplayComponent(AFRAME);
     registerHudControlsComponent(AFRAME);
     window.__HUD_AFRAME_REGISTERED__ = true;
   }
