@@ -1058,7 +1058,11 @@ AFRAME_READY.then((AFRAME) => {
         if (!el) return null;
         const light = el.getAttribute("light");
         if (!light) return null;
-        const baseIntensity = light.intensity ?? 1;
+        const stored = parseFloat(el.dataset.baseIntensity ?? "");
+        const baseIntensity = Number.isFinite(stored) ? stored : light.intensity ?? 1;
+        if (!Number.isFinite(stored)) {
+          el.dataset.baseIntensity = `${baseIntensity}`;
+        }
         return {
           el,
           data: { ...light, intensity: baseIntensity },
