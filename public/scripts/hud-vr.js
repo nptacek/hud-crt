@@ -9,8 +9,15 @@ const vertexShader = `
 `;
 
 const fragmentShader = `
+  precision mediump float;
+
+  /*
+   * Fragment shader adapted from Grok's CRT shader (MIT License).
+   * https://github.com/xai-org/grok
+   */
   uniform sampler2D tDiffuse;
   uniform float time;
+  uniform vec2 resolution;
   uniform float curvature;
   uniform float scanlineIntensity;
   uniform float scanlineCount;
@@ -29,11 +36,22 @@ const fragmentShader = `
   uniform float brightness;
   uniform float contrast;
   uniform vec3 tint;
-  uniform float resolution;
+  uniform float resolutionScale;
   varying vec2 vUv;
 
   float random(vec2 st) {
     return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+  }
+
+  mat2 rotate2D(float angle) {
+    float s = sin(angle);
+    float c = cos(angle);
+    return mat2(c, -s, s, c);
+  }
+
+  vec3 hsv(float h, float s, float v) {
+    vec3 rgb = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+    return v * mix(vec3(1.0), rgb, s);
   }
 
   vec2 curveRemapUV(vec2 uv) {
@@ -53,120 +71,284 @@ const fragmentShader = `
     }
 
     vec2 scaledUv = remappedUv;
-    if (resolution > 1.0) {
-      float invResolution = 1.0 / resolution;
-      vec2 texelSize = vec2(invResolution) / 512.0;
+    float sampleScale = max(resolutionScale, 1.0);
+    vec2 safeResolution = vec2(max(resolution.x, 1.0), max(resolution.y, 1.0));
+    vec2 texelSize = vec2(1.0) / safeResolution;
 
+    vec2 redOffsetDir = rotate2D(radians(redAngle)) * vec2(redOffset, 0.0);
+    vec2 greenOffsetDir = rotate2D(radians(greenAngle)) * vec2(greenOffset, 0.0);
+    vec2 blueOffsetDir = rotate2D(radians(blueAngle)) * vec2(blueOffset, 0.0);
+
+    vec3 color;
+    if (sampleScale > 1.0) {
       vec3 redSample = vec3(0.0);
       vec3 greenSample = vec3(0.0);
       vec3 blueSample = vec3(0.0);
 
-      float redAngleRad = redAngle * 3.14159 / 180.0;
-      float greenAngleRad = greenAngle * 3.14159 / 180.0;
-      float blueAngleRad = blueAngle * 3.14159 / 180.0;
-
-      vec2 redOffsetDir = vec2(cos(redAngleRad), sin(redAngleRad)) * redOffset;
-      vec2 greenOffsetDir = vec2(cos(greenAngleRad), sin(greenAngleRad)) * greenOffset;
-      vec2 blueOffsetDir = vec2(cos(blueAngleRad), sin(blueAngleRad)) * blueOffset;
-
-      for(int i = -1; i <= 1; i++) {
-        for(int j = -1; j <= 1; j++) {
-          vec2 offset = vec2(float(i), float(j)) * texelSize * resolution;
+      for (int i = -1; i <= 1; i++) {
+        for (int j = -1; j <= 1; j++) {
+          vec2 offset = vec2(float(i), float(j)) * texelSize * sampleScale;
           redSample += texture2D(tDiffuse, scaledUv + offset + redOffsetDir).rgb * redColor / 9.0;
           greenSample += texture2D(tDiffuse, scaledUv + offset + greenOffsetDir).rgb * greenColor / 9.0;
           blueSample += texture2D(tDiffuse, scaledUv + offset + blueOffsetDir).rgb * blueColor / 9.0;
         }
       }
 
-      vec3 color = redSample + greenSample + blueSample;
-
-      float scanline = sin(remappedUv.y * scanlineCount * 3.14159 * 2.0) * 0.5 + 0.5;
-      scanline = pow(scanline, 1.2) * scanlineIntensity;
-      color *= 1.0 - scanline;
-
-      float noise = random(vUv + vec2(time * 0.01, 0.0)) * noiseIntensity;
-      color += noise;
-
-      vec2 bloomOffset = texelSize * 2.0;
-      vec3 bloom = vec3(0.0);
-      bloom += texture2D(tDiffuse, scaledUv + vec2(bloomOffset.x, 0.0)).rgb * 0.1;
-      bloom += texture2D(tDiffuse, scaledUv - vec2(bloomOffset.x, 0.0)).rgb * 0.1;
-      bloom += texture2D(tDiffuse, scaledUv + vec2(0.0, bloomOffset.y)).rgb * 0.1;
-      bloom += texture2D(tDiffuse, scaledUv - vec2(0.0, bloomOffset.y)).rgb * 0.1;
-
-      vec3 crtTexture = texture2D(tDiffuse, scaledUv).rgb;
-      vec3 enhancedTexture = crtTexture + bloom * 0.5;
-
-      float luminance = dot(color, vec3(0.299, 0.587, 0.114));
-      float mixFactor = 0.5 + luminance * 0.2;
-      color = mix(color, enhancedTexture, mixFactor);
-
-      float flicker = random(vec2(time * 0.1, 0.0)) * flickerIntensity;
-      color *= 1.0 - flicker;
-
-      float vignette = length(vUv - 0.5) * vignetteIntensity;
-      color *= 1.0 - vignette;
-
-      color = (color - 0.5) * contrast + 0.5;
-      color *= brightness;
-
-      float glow = max(max(color.r, color.g), color.b) * 0.6;
-      color += vec3(glow * tint.r, glow * tint.g, glow * tint.b);
-
-      gl_FragColor = vec4(color, 1.0);
+      color = redSample + greenSample + blueSample;
     } else {
-      float redAngleRad = redAngle * 3.14159 / 180.0;
-      float greenAngleRad = greenAngle * 3.14159 / 180.0;
-      float blueAngleRad = blueAngle * 3.14159 / 180.0;
-
-      vec2 redOffsetDir = vec2(cos(redAngleRad), sin(redAngleRad)) * redOffset;
-      vec2 greenOffsetDir = vec2(cos(greenAngleRad), sin(greenAngleRad)) * greenOffset;
-      vec2 blueOffsetDir = vec2(cos(blueAngleRad), sin(blueAngleRad)) * blueOffset;
-
       vec3 redSample = texture2D(tDiffuse, scaledUv + redOffsetDir).rgb * redColor;
       vec3 greenSample = texture2D(tDiffuse, scaledUv + greenOffsetDir).rgb * greenColor;
       vec3 blueSample = texture2D(tDiffuse, scaledUv + blueOffsetDir).rgb * blueColor;
 
-      vec3 color = redSample + greenSample + blueSample;
-
-      float scanline = sin(remappedUv.y * scanlineCount * 3.14159 * 2.0) * 0.5 + 0.5;
-      scanline = pow(scanline, 1.0) * scanlineIntensity;
-      color *= 1.0 - scanline;
-
-      float noise = random(vUv + vec2(time * 0.01, 0.0)) * noiseIntensity;
-      color += noise;
-
-      vec3 crtTexture = texture2D(tDiffuse, scaledUv).rgb;
-
-      vec2 bloomOffset = 1.0 / vec2(512.0);
-      vec3 bloom = vec3(0.0);
-      bloom += texture2D(tDiffuse, scaledUv + vec2(bloomOffset.x, 0.0)).rgb * 0.1;
-      bloom += texture2D(tDiffuse, scaledUv - vec2(bloomOffset.x, 0.0)).rgb * 0.1;
-      bloom += texture2D(tDiffuse, scaledUv + vec2(0.0, bloomOffset.y)).rgb * 0.1;
-      bloom += texture2D(tDiffuse, scaledUv - vec2(0.0, bloomOffset.y)).rgb * 0.1;
-
-      vec3 enhancedTexture = crtTexture + bloom * 0.5;
-
-      float luminance = dot(color, vec3(0.299, 0.587, 0.114));
-      float mixFactor = 0.5 + luminance * 0.2;
-      color = mix(color, enhancedTexture, mixFactor);
-
-      float flicker = random(vec2(time * 0.1, 0.0)) * flickerIntensity;
-      color *= 1.0 - flicker;
-
-      float vignette = length(vUv - 0.5) * vignetteIntensity;
-      color *= 1.0 - vignette;
-
-      color = (color - 0.5) * contrast + 0.5;
-      color *= brightness;
-
-      float glow = max(max(color.r, color.g), color.b) * 0.6;
-      color += vec3(glow * tint.r, glow * tint.g, glow * tint.b);
-
-      gl_FragColor = vec4(color, 1.0);
+      color = redSample + greenSample + blueSample;
     }
+
+    float scanline = sin(remappedUv.y * scanlineCount * 3.14159 * 2.0) * 0.5 + 0.5;
+    scanline = pow(scanline, 1.1) * scanlineIntensity;
+    color *= 1.0 - scanline;
+
+    vec2 screenUv = gl_FragCoord.xy / safeResolution;
+    float noise = random(screenUv + vec2(time * 0.03, 0.0)) * noiseIntensity;
+    color += noise;
+
+    vec2 bloomOffset = texelSize * 2.0;
+    vec3 bloom = vec3(0.0);
+    bloom += texture2D(tDiffuse, scaledUv + vec2(bloomOffset.x, 0.0)).rgb * 0.1;
+    bloom += texture2D(tDiffuse, scaledUv - vec2(bloomOffset.x, 0.0)).rgb * 0.1;
+    bloom += texture2D(tDiffuse, scaledUv + vec2(0.0, bloomOffset.y)).rgb * 0.1;
+    bloom += texture2D(tDiffuse, scaledUv - vec2(0.0, bloomOffset.y)).rgb * 0.1;
+
+    vec3 crtTexture = texture2D(tDiffuse, scaledUv).rgb;
+    vec3 enhancedTexture = crtTexture + bloom * 0.5;
+
+    float luminance = dot(color, vec3(0.299, 0.587, 0.114));
+    float mixFactor = 0.5 + luminance * 0.2;
+    color = mix(color, enhancedTexture, mixFactor);
+
+    float flicker = random(vec2(time * 0.1, 0.0)) * flickerIntensity;
+    color *= 1.0 - flicker;
+
+    float vignette = length(vUv - 0.5) * vignetteIntensity;
+    color *= 1.0 - vignette;
+
+    color = (color - 0.5) * contrast + 0.5;
+    color *= brightness;
+
+    float glow = max(max(color.r, color.g), color.b) * 0.6;
+    vec3 dynamicTint = hsv(mod(time * 0.05 + remappedUv.y * 0.12, 1.0), 0.45, 1.0);
+    color += vec3(glow * tint.r, glow * tint.g, glow * tint.b);
+    color += dynamicTint * glow * 0.1;
+
+    gl_FragColor = vec4(color, 1.0);
   }
 `;
+
+const CRT_SHADER_DEFAULTS = {
+  time: 0,
+  curvature: 2.5,
+  scanlineIntensity: 0.5,
+  scanlineCount: 720,
+  vignetteIntensity: 1.1,
+  noiseIntensity: 0.2,
+  flickerIntensity: 0.02,
+  redOffset: 0.003,
+  greenOffset: 0.0015,
+  blueOffset: 0.004,
+  redAngle: 0,
+  greenAngle: 45,
+  blueAngle: 180,
+  redColor: { x: 1.9, y: 0.0, z: 0.0 },
+  greenColor: { x: 0.0, y: 1.9, z: 0.0 },
+  blueColor: { x: 0.0, y: 0.0, z: 1.9 },
+  brightness: 1.45,
+  contrast: 1.35,
+  tint: { x: 0.0, y: 0.8, z: 1.0 },
+  resolution: { x: 512, y: 512 },
+  resolutionScale: 1.0,
+};
+
+function toVec3(value, fallback) {
+  if (Array.isArray(value)) {
+    return { x: value[0] ?? fallback.x, y: value[1] ?? fallback.y, z: value[2] ?? fallback.z };
+  }
+  if (value && typeof value === "object") {
+    if ("x" in value && "y" in value && "z" in value) {
+      return { x: value.x, y: value.y, z: value.z };
+    }
+    if ("r" in value && "g" in value && "b" in value) {
+      return { x: value.r, y: value.g, z: value.b };
+    }
+  }
+  return { x: fallback.x, y: fallback.y, z: fallback.z };
+}
+
+function toVec2(value, fallback) {
+  if (Array.isArray(value)) {
+    return { x: value[0] ?? fallback.x, y: value[1] ?? fallback.y };
+  }
+  if (value && typeof value === "object") {
+    if ("x" in value && "y" in value) {
+      return { x: value.x, y: value.y };
+    }
+    if ("width" in value && "height" in value) {
+      return { x: value.width, y: value.height };
+    }
+  }
+  return { x: fallback.x, y: fallback.y };
+}
+
+function createCrtUniforms(THREE, data = {}) {
+  const redColor = toVec3(data.redColor ?? CRT_SHADER_DEFAULTS.redColor, CRT_SHADER_DEFAULTS.redColor);
+  const greenColor = toVec3(data.greenColor ?? CRT_SHADER_DEFAULTS.greenColor, CRT_SHADER_DEFAULTS.greenColor);
+  const blueColor = toVec3(data.blueColor ?? CRT_SHADER_DEFAULTS.blueColor, CRT_SHADER_DEFAULTS.blueColor);
+  const tint = toVec3(data.tint ?? CRT_SHADER_DEFAULTS.tint, CRT_SHADER_DEFAULTS.tint);
+  const resolution = toVec2(data.resolution ?? CRT_SHADER_DEFAULTS.resolution, CRT_SHADER_DEFAULTS.resolution);
+
+  return {
+    tDiffuse: { value: data.map ?? null },
+    time: { value: data.time ?? CRT_SHADER_DEFAULTS.time },
+    curvature: { value: data.curvature ?? CRT_SHADER_DEFAULTS.curvature },
+    scanlineIntensity: { value: data.scanlineIntensity ?? CRT_SHADER_DEFAULTS.scanlineIntensity },
+    scanlineCount: { value: data.scanlineCount ?? CRT_SHADER_DEFAULTS.scanlineCount },
+    vignetteIntensity: { value: data.vignetteIntensity ?? CRT_SHADER_DEFAULTS.vignetteIntensity },
+    noiseIntensity: { value: data.noiseIntensity ?? CRT_SHADER_DEFAULTS.noiseIntensity },
+    flickerIntensity: { value: data.flickerIntensity ?? CRT_SHADER_DEFAULTS.flickerIntensity },
+    redOffset: { value: data.redOffset ?? CRT_SHADER_DEFAULTS.redOffset },
+    greenOffset: { value: data.greenOffset ?? CRT_SHADER_DEFAULTS.greenOffset },
+    blueOffset: { value: data.blueOffset ?? CRT_SHADER_DEFAULTS.blueOffset },
+    redAngle: { value: data.redAngle ?? CRT_SHADER_DEFAULTS.redAngle },
+    greenAngle: { value: data.greenAngle ?? CRT_SHADER_DEFAULTS.greenAngle },
+    blueAngle: { value: data.blueAngle ?? CRT_SHADER_DEFAULTS.blueAngle },
+    redColor: { value: new THREE.Vector3(redColor.x, redColor.y, redColor.z) },
+    greenColor: { value: new THREE.Vector3(greenColor.x, greenColor.y, greenColor.z) },
+    blueColor: { value: new THREE.Vector3(blueColor.x, blueColor.y, blueColor.z) },
+    brightness: { value: data.brightness ?? CRT_SHADER_DEFAULTS.brightness },
+    contrast: { value: data.contrast ?? CRT_SHADER_DEFAULTS.contrast },
+    tint: { value: new THREE.Vector3(tint.x, tint.y, tint.z) },
+    resolution: { value: new THREE.Vector2(resolution.x, resolution.y) },
+    resolutionScale: { value: data.resolutionScale ?? CRT_SHADER_DEFAULTS.resolutionScale },
+  };
+}
+
+function updateCrtUniforms(uniforms, data = {}) {
+  if (!uniforms) return;
+  if ("map" in data && "tDiffuse" in uniforms) {
+    uniforms.tDiffuse.value = data.map;
+  }
+  if ("time" in data && "time" in uniforms) {
+    uniforms.time.value = data.time;
+  }
+  if ("curvature" in data && "curvature" in uniforms) {
+    uniforms.curvature.value = data.curvature;
+  }
+  if ("scanlineIntensity" in data && "scanlineIntensity" in uniforms) {
+    uniforms.scanlineIntensity.value = data.scanlineIntensity;
+  }
+  if ("scanlineCount" in data && "scanlineCount" in uniforms) {
+    uniforms.scanlineCount.value = data.scanlineCount;
+  }
+  if ("vignetteIntensity" in data && "vignetteIntensity" in uniforms) {
+    uniforms.vignetteIntensity.value = data.vignetteIntensity;
+  }
+  if ("noiseIntensity" in data && "noiseIntensity" in uniforms) {
+    uniforms.noiseIntensity.value = data.noiseIntensity;
+  }
+  if ("flickerIntensity" in data && "flickerIntensity" in uniforms) {
+    uniforms.flickerIntensity.value = data.flickerIntensity;
+  }
+  if ("redOffset" in data && "redOffset" in uniforms) {
+    uniforms.redOffset.value = data.redOffset;
+  }
+  if ("greenOffset" in data && "greenOffset" in uniforms) {
+    uniforms.greenOffset.value = data.greenOffset;
+  }
+  if ("blueOffset" in data && "blueOffset" in uniforms) {
+    uniforms.blueOffset.value = data.blueOffset;
+  }
+  if ("redAngle" in data && "redAngle" in uniforms) {
+    uniforms.redAngle.value = data.redAngle;
+  }
+  if ("greenAngle" in data && "greenAngle" in uniforms) {
+    uniforms.greenAngle.value = data.greenAngle;
+  }
+  if ("blueAngle" in data && "blueAngle" in uniforms) {
+    uniforms.blueAngle.value = data.blueAngle;
+  }
+  if ("redColor" in data && uniforms.redColor) {
+    const vec = toVec3(data.redColor, CRT_SHADER_DEFAULTS.redColor);
+    uniforms.redColor.value.set(vec.x, vec.y, vec.z);
+  }
+  if ("greenColor" in data && uniforms.greenColor) {
+    const vec = toVec3(data.greenColor, CRT_SHADER_DEFAULTS.greenColor);
+    uniforms.greenColor.value.set(vec.x, vec.y, vec.z);
+  }
+  if ("blueColor" in data && uniforms.blueColor) {
+    const vec = toVec3(data.blueColor, CRT_SHADER_DEFAULTS.blueColor);
+    uniforms.blueColor.value.set(vec.x, vec.y, vec.z);
+  }
+  if ("brightness" in data && "brightness" in uniforms) {
+    uniforms.brightness.value = data.brightness;
+  }
+  if ("contrast" in data && "contrast" in uniforms) {
+    uniforms.contrast.value = data.contrast;
+  }
+  if ("tint" in data && uniforms.tint) {
+    const vec = toVec3(data.tint, CRT_SHADER_DEFAULTS.tint);
+    uniforms.tint.value.set(vec.x, vec.y, vec.z);
+  }
+  if ("resolution" in data && uniforms.resolution) {
+    const vec = toVec2(data.resolution, CRT_SHADER_DEFAULTS.resolution);
+    uniforms.resolution.value.set(vec.x, vec.y);
+  }
+  if ("resolutionScale" in data && "resolutionScale" in uniforms) {
+    uniforms.resolutionScale.value = data.resolutionScale;
+  }
+}
+
+function registerHudCrtShader(AFRAME) {
+  if (AFRAME.shaders && AFRAME.shaders["hud-crt"]) {
+    return;
+  }
+
+  AFRAME.registerShader("hud-crt", {
+    schema: {
+      map: { type: "map", is: "uniform", default: null },
+      time: { type: "time", is: "uniform", default: CRT_SHADER_DEFAULTS.time },
+      curvature: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.curvature },
+      scanlineIntensity: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.scanlineIntensity },
+      scanlineCount: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.scanlineCount },
+      vignetteIntensity: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.vignetteIntensity },
+      noiseIntensity: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.noiseIntensity },
+      flickerIntensity: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.flickerIntensity },
+      redOffset: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.redOffset },
+      greenOffset: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.greenOffset },
+      blueOffset: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.blueOffset },
+      redAngle: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.redAngle },
+      greenAngle: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.greenAngle },
+      blueAngle: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.blueAngle },
+      redColor: { type: "vec3", is: "uniform", default: CRT_SHADER_DEFAULTS.redColor },
+      greenColor: { type: "vec3", is: "uniform", default: CRT_SHADER_DEFAULTS.greenColor },
+      blueColor: { type: "vec3", is: "uniform", default: CRT_SHADER_DEFAULTS.blueColor },
+      brightness: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.brightness },
+      contrast: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.contrast },
+      tint: { type: "vec3", is: "uniform", default: CRT_SHADER_DEFAULTS.tint },
+      resolution: { type: "vec2", is: "uniform", default: CRT_SHADER_DEFAULTS.resolution },
+      resolutionScale: { type: "number", is: "uniform", default: CRT_SHADER_DEFAULTS.resolutionScale },
+    },
+    init(data) {
+      const THREE = AFRAME.THREE;
+      this.uniforms = createCrtUniforms(THREE, data);
+      this.material = new THREE.ShaderMaterial({
+        uniforms: this.uniforms,
+        vertexShader,
+        fragmentShader,
+      });
+    },
+    update(data) {
+      updateCrtUniforms(this.uniforms, data);
+    },
+  });
+}
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
@@ -441,29 +623,30 @@ function registerCrtDisplayComponent(AFRAME) {
       this.system = this.el.sceneEl.systems["hud-telemetry"];
       this.canvas = null;
       this.texture = null;
-      this.uniforms = {
-        tDiffuse: { value: null },
-        time: { value: 0 },
-        curvature: { value: 2.5 },
-        scanlineIntensity: { value: 0.5 },
-        scanlineCount: { value: 720 },
-        vignetteIntensity: { value: 1.1 },
-        noiseIntensity: { value: 0.2 },
-        flickerIntensity: { value: 0.02 },
-        redOffset: { value: 0.003 },
-        greenOffset: { value: 0.0015 },
-        blueOffset: { value: 0.004 },
-        redAngle: { value: 0 },
-        greenAngle: { value: 45 },
-        blueAngle: { value: 180 },
-        redColor: { value: new THREE.Vector3(1.9, 0, 0) },
-        greenColor: { value: new THREE.Vector3(0, 1.9, 0) },
-        blueColor: { value: new THREE.Vector3(0, 0, 1.9) },
-        brightness: { value: 1.45 },
-        contrast: { value: 1.35 },
-        tint: { value: new THREE.Vector3(0, 0.8, 1) },
-        resolution: { value: 1.0 },
-      };
+      const initialCRT = this.system ? this.system.getCRTSettings() : null;
+      this.uniforms = createCrtUniforms(THREE, {
+        curvature: initialCRT?.curvature,
+        scanlineIntensity: initialCRT?.scanlineIntensity,
+        noiseIntensity: initialCRT?.noiseIntensity,
+        flickerIntensity: initialCRT?.flickerIntensity,
+        redOffset: initialCRT?.redOffset,
+        greenOffset: initialCRT?.greenOffset,
+        blueOffset: initialCRT?.blueOffset,
+        redAngle: initialCRT?.redAngle,
+        greenAngle: initialCRT?.greenAngle,
+        blueAngle: initialCRT?.blueAngle,
+        redColor: initialCRT ? { x: initialCRT.redColor[0], y: initialCRT.redColor[1], z: initialCRT.redColor[2] } : undefined,
+        greenColor: initialCRT
+          ? { x: initialCRT.greenColor[0], y: initialCRT.greenColor[1], z: initialCRT.greenColor[2] }
+          : undefined,
+        blueColor: initialCRT
+          ? { x: initialCRT.blueColor[0], y: initialCRT.blueColor[1], z: initialCRT.blueColor[2] }
+          : undefined,
+        brightness: initialCRT?.brightness,
+        contrast: initialCRT?.contrast,
+        tint: initialCRT ? { x: initialCRT.tint[0], y: initialCRT.tint[1], z: initialCRT.tint[2] } : undefined,
+        resolutionScale: initialCRT?.resolution,
+      });
       this.material = new THREE.ShaderMaterial({
         uniforms: this.uniforms,
         vertexShader,
@@ -499,35 +682,38 @@ function registerCrtDisplayComponent(AFRAME) {
         this.texture.magFilter = THREE.LinearFilter;
         this.texture.generateMipmaps = false;
         this.texture.needsUpdate = true;
-        this.uniforms.tDiffuse.value = this.texture;
+        updateCrtUniforms(this.uniforms, { map: this.texture });
         this.system.registerTexture(this.texture);
         this.system.registerCanvas(this.canvas);
+      }
+      if (this.canvas) {
+        updateCrtUniforms(this.uniforms, {
+          resolution: { x: this.canvas.width, y: this.canvas.height },
+        });
       }
     },
     tick(time) {
       const crt = this.system.getCRTSettings();
-      this.uniforms.time.value = time / 1000;
-      this.uniforms.curvature.value = crt.curvature;
-      this.uniforms.scanlineIntensity.value = crt.scanlineIntensity;
-      this.uniforms.noiseIntensity.value = crt.noiseIntensity;
-      this.uniforms.flickerIntensity.value = crt.flickerIntensity;
-      this.uniforms.resolution.value = crt.resolution;
-      this.uniforms.tint.value.set(crt.tint[0], crt.tint[1], crt.tint[2]);
-      this.uniforms.redOffset.value = crt.redOffset;
-      this.uniforms.greenOffset.value = crt.greenOffset;
-      this.uniforms.blueOffset.value = crt.blueOffset;
-      this.uniforms.redAngle.value = crt.redAngle;
-      this.uniforms.greenAngle.value = crt.greenAngle;
-      this.uniforms.blueAngle.value = crt.blueAngle;
-      this.uniforms.redColor.value.set(crt.redColor[0], crt.redColor[1], crt.redColor[2]);
-      this.uniforms.greenColor.value.set(
-        crt.greenColor[0],
-        crt.greenColor[1],
-        crt.greenColor[2]
-      );
-      this.uniforms.blueColor.value.set(crt.blueColor[0], crt.blueColor[1], crt.blueColor[2]);
-      this.uniforms.brightness.value = crt.brightness;
-      this.uniforms.contrast.value = crt.contrast;
+      updateCrtUniforms(this.uniforms, {
+        time: time / 1000,
+        curvature: crt.curvature,
+        scanlineIntensity: crt.scanlineIntensity,
+        noiseIntensity: crt.noiseIntensity,
+        flickerIntensity: crt.flickerIntensity,
+        resolutionScale: crt.resolution,
+        tint: { x: crt.tint[0], y: crt.tint[1], z: crt.tint[2] },
+        redOffset: crt.redOffset,
+        greenOffset: crt.greenOffset,
+        blueOffset: crt.blueOffset,
+        redAngle: crt.redAngle,
+        greenAngle: crt.greenAngle,
+        blueAngle: crt.blueAngle,
+        redColor: { x: crt.redColor[0], y: crt.redColor[1], z: crt.redColor[2] },
+        greenColor: { x: crt.greenColor[0], y: crt.greenColor[1], z: crt.greenColor[2] },
+        blueColor: { x: crt.blueColor[0], y: crt.blueColor[1], z: crt.blueColor[2] },
+        brightness: crt.brightness,
+        contrast: crt.contrast,
+      });
 
       if (this.system.consumeTextureDirty() && this.texture) {
         this.texture.needsUpdate = true;
@@ -773,6 +959,7 @@ function registerHudControlsComponent(AFRAME) {
 
 function ensureHudRegistered(AFRAME) {
   if (!window.__HUD_AFRAME_REGISTERED__) {
+    registerHudCrtShader(AFRAME);
     registerHudTelemetrySystem(AFRAME);
     registerHudDrawComponent(AFRAME);
     registerCrtDisplayComponent(AFRAME);
